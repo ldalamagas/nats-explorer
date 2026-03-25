@@ -1,0 +1,12 @@
+services:
+  nats:
+    image: nats:latest
+    command: ["-js", "-m", "8222", "--name", "nats-explorer-dev"]
+    ports:
+      - "4222:4222"   # client
+      - "8222:8222"   # HTTP monitoring
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo 'PING\r\n' | nc -w1 localhost 4222 | grep -q INFO"]
+      interval: 2s
+      timeout: 3s
+      retries: 10

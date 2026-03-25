@@ -1,0 +1,148 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ── Build ──────────────────────────────────────────────────────────────
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "go build -v -o nats-explorer .",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "build: all packages",
+      "type": "shell",
+      "command": "go build ./...",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "vet",
+      "type": "shell",
+      "command": "go vet ./...",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": "$go"
+    },
+    // ── Run ───────────────────────────────────────────────────────────────
+    {
+      "label": "run",
+      "type": "shell",
+      "command": "go run . --url nats://localhost:4222",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    // ── NATS / Docker ──────────────────────────────────────────────────────
+    {
+      "label": "nats: start",
+      "type": "shell",
+      "command": "docker compose up -d && docker compose logs -f",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "nats"
+      },
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": {
+            "regexp": ".",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "Starting",
+            "endsPattern": "healthy"
+          }
+        }
+      ]
+    },
+    {
+      "label": "nats: stop",
+      "type": "shell",
+      "command": "docker compose down",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "nats: restart",
+      "type": "shell",
+      "command": "docker compose down && docker compose up -d && docker compose logs -f",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "nats"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    // ── Seed ──────────────────────────────────────────────────────────────
+    {
+      "label": "seed",
+      "type": "shell",
+      "command": "go run ./dev/seed --url nats://localhost:4222",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "seed: reset",
+      "type": "shell",
+      // Wipe all streams/KV/objects by restarting NATS, then re-seed
+      "command": "docker compose down && docker compose up -d && sleep 2 && go run ./dev/seed --url nats://localhost:4222",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": "$go"
+    },
+    // ── Compound: full dev start ───────────────────────────────────────────
+    {
+      "label": "dev: start (nats + seed + run)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "nats: start",
+        "seed",
+        "run"
+      ],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
