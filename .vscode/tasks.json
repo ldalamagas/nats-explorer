@@ -139,7 +139,22 @@
       },
       "problemMatcher": "$go"
     },
-    // ── Compound: full dev start ───────────────────────────────────────────
+    // ── Compound ───────────────────────────────────────────────────────────
+    {
+      "label": "build: clean + build + reset-seed",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "clean",
+        "build",
+        "seed: reset"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
     {
       "label": "dev: start (nats + seed + run)",
       "dependsOrder": "sequence",
