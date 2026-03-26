@@ -5,7 +5,7 @@ A Go TUI application for exploring NATS server contents interactively.
 It is modeled after k9s (for Kubernetes) but targets NATS.
 
 ## Stack
-- **Language**: Go (module: `github.com/lefteris/nats-explorer`)
+- **Language**: Go (module: `github.com/ldalamagas/nats-explorer`)
 - **TUI**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) + [Bubbles](https://github.com/charmbracelet/bubbles) + [Lipgloss](https://github.com/charmbracelet/lipgloss)
 - **NATS client**: `github.com/nats-io/nats.go` (JetStream new API via `nats.go/jetstream`)
 

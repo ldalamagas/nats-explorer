@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	nc "github.com/lefteris/nats-explorer/internal/nats"
+	nc "github.com/ldalamagas/nats-explorer/internal/nats"
 )
 
 const maxLiveMessages = 200

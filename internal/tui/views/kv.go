@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	nc "github.com/lefteris/nats-explorer/internal/nats"
+	nc "github.com/ldalamagas/nats-explorer/internal/nats"
 )
 
 type kvBucketItem struct{ info nc.KVBucketInfo }

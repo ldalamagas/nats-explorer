@@ -1,4 +1,4 @@
-module github.com/lefteris/nats-explorer
+module github.com/ldalamagas/nats-explorer
 
 go 1.26.1
 

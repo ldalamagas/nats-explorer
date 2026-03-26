@@ -6,8 +6,8 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	nc "github.com/lefteris/nats-explorer/internal/nats"
-	"github.com/lefteris/nats-explorer/internal/tui"
+	nc "github.com/ldalamagas/nats-explorer/internal/nats"
+	"github.com/ldalamagas/nats-explorer/internal/tui"
 )
 
 func main() {

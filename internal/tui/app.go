@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	nc "github.com/lefteris/nats-explorer/internal/nats"
-	"github.com/lefteris/nats-explorer/internal/tui/views"
+	nc "github.com/ldalamagas/nats-explorer/internal/nats"
+	"github.com/ldalamagas/nats-explorer/internal/tui/views"
 )
 
 type tab int
