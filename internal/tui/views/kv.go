@@ -39,18 +39,19 @@ const (
 )
 
 type KVView struct {
-	client     *nc.Client
-	width      int
-	height     int
-	pane       kvPane
-	bucketList list.Model
-	keyList    list.Model
-	valueView  viewport.Model
-	buckets    []nc.KVBucketInfo
-	keys       []nc.KVEntry
-	selected   string
-	err        error
-	loading    bool
+	client      *nc.Client
+	width       int
+	height      int
+	pane        kvPane
+	bucketList  list.Model
+	keyList     list.Model
+	valueView   viewport.Model
+	buckets     []nc.KVBucketInfo
+	keys        []nc.KVEntry
+	selected    string
+	selectedKey string
+	err         error
+	loading     bool
 }
 
 func NewKVView(client *nc.Client) KVView {
@@ -149,6 +150,7 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 			case kvPaneKeys:
 				v.pane = kvPaneValue
 				if sel, ok := v.keyList.SelectedItem().(kvKeyItem); ok {
+					v.selectedKey = sel.entry.Key
 					v.valueView.SetContent(renderKVValue(sel.entry))
 				}
 			}
@@ -172,6 +174,7 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		if _, ok := msg.(tea.KeyMsg); ok {
 			if sel, ok := v.keyList.SelectedItem().(kvKeyItem); ok {
+				v.selectedKey = sel.entry.Key
 				v.valueView.SetContent(renderKVValue(sel.entry))
 			}
 		}
@@ -181,6 +184,16 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 	}
 
 	return v, tea.Batch(cmds...)
+}
+
+func (v KVView) Breadcrumb() string {
+	switch v.pane {
+	case kvPaneKeys:
+		return "KV Store > " + v.selected
+	case kvPaneValue:
+		return "KV Store > " + v.selected + " > " + v.selectedKey
+	}
+	return "KV Store"
 }
 
 func (v *KVView) SetSize(w, h int) {

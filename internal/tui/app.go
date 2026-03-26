@@ -55,7 +55,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
-		contentH := msg.Height - 5 // header + tabs + status
+		contentH := msg.Height - 7 // header + tabs + breadcrumb + status
 		contentW := msg.Width - 2
 		a.kvView.SetSize(contentW, contentH)
 		a.objView.SetSize(contentW, contentH)
@@ -140,6 +140,19 @@ func (a App) View() string {
 		}
 	}
 	b.WriteString(strings.Join(tabs, "  ") + "\n")
+	b.WriteString(strings.Repeat("─", a.width) + "\n")
+
+	// Breadcrumb
+	var breadcrumb string
+	switch a.activeTab {
+	case tabKV:
+		breadcrumb = a.kvView.Breadcrumb()
+	case tabObjects:
+		breadcrumb = a.objView.Breadcrumb()
+	case tabSubjects:
+		breadcrumb = "Subjects"
+	}
+	b.WriteString(StyleMuted.Render(breadcrumb) + "\n")
 	b.WriteString(strings.Repeat("─", a.width) + "\n")
 
 	// Content

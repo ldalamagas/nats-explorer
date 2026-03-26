@@ -44,18 +44,19 @@ const (
 )
 
 type ObjView struct {
-	client     *nc.Client
-	width      int
-	height     int
-	pane       objPane
-	bucketList list.Model
-	entryList  list.Model
-	detailView viewport.Model
-	buckets    []nc.ObjBucketInfo
-	entries    []nc.ObjEntry
-	selected   string
-	err        error
-	loading    bool
+	client          *nc.Client
+	width           int
+	height          int
+	pane            objPane
+	bucketList      list.Model
+	entryList       list.Model
+	detailView      viewport.Model
+	buckets         []nc.ObjBucketInfo
+	entries         []nc.ObjEntry
+	selected        string
+	selectedEntry   string
+	err             error
+	loading         bool
 }
 
 func NewObjView(client *nc.Client) ObjView {
@@ -154,6 +155,7 @@ func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 			case objPaneEntries:
 				v.pane = objPaneDetail
 				if sel, ok := v.entryList.SelectedItem().(objEntryItem); ok {
+					v.selectedEntry = sel.entry.Name
 					v.detailView.SetContent(renderObjDetail(sel.entry))
 				}
 			}
@@ -177,6 +179,7 @@ func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		if _, ok := msg.(tea.KeyMsg); ok {
 			if sel, ok := v.entryList.SelectedItem().(objEntryItem); ok {
+				v.selectedEntry = sel.entry.Name
 				v.detailView.SetContent(renderObjDetail(sel.entry))
 			}
 		}
@@ -186,6 +189,16 @@ func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 	}
 
 	return v, tea.Batch(cmds...)
+}
+
+func (v ObjView) Breadcrumb() string {
+	switch v.pane {
+	case objPaneEntries:
+		return "Object Store > " + v.selected
+	case objPaneDetail:
+		return "Object Store > " + v.selected + " > " + v.selectedEntry
+	}
+	return "Object Store"
 }
 
 func (v *ObjView) SetSize(w, h int) {
