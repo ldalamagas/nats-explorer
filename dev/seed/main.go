@@ -115,6 +115,10 @@ func seedKV(ctx context.Context, js jetstream.JetStream) {
 		kvPutBytes(ctx, config, "services.registry", serviceRegistryJSON)
 		kvPut(ctx, config, "server.tls_certificate", tlsCertPEM)
 		kvPut(ctx, config, "app.changelog", appChangelog)
+		kvPut(ctx, config, "infrastructure.networking.egress.firewall.rules.allow_list", `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"]`)
+		kvPut(ctx, config, "observability.tracing.opentelemetry.exporter.otlp.endpoint", "https://otel-collector.internal:4317")
+		kvPut(ctx, config, "security.authentication.oauth2.providers.google.client_secret", "GOCSPX-supersecret-placeholder-value-here")
+		kvPut(ctx, config, "microservices.order-service.dependencies.payment-service.circuit_breaker.threshold_percentage", "50")
 
 		// Seed a deleted key so the UI can render tombstone entries.
 		kvPut(ctx, config, "app.deprecated_flag", "legacy-value")
@@ -122,7 +126,7 @@ func seedKV(ctx context.Context, js jetstream.JetStream) {
 			fmt.Printf("  delete app.deprecated_flag: %v\n", err)
 		}
 
-		fmt.Printf("  keys: 16 (+ 1 deleted)\n")
+		fmt.Printf("  keys: 20 (+ 1 deleted)\n")
 	}
 
 	// sessions bucket (short TTL to simulate real usage)
@@ -201,7 +205,10 @@ func seedKV(ctx context.Context, js jetstream.JetStream) {
 			"updated_by": "ci-bot",
 		})
 		kvPutBytes(ctx, flags, "overrides.matrix", overridesJSON)
-		fmt.Printf("  keys: 8\n")
+		kvPut(ctx, flags, "prod.checkout.new-multi-step-address-form.gradual-rollout-cohort-a", "false")
+		kvPut(ctx, flags, "prod.payments.stripe-v3-integration.3ds2-challenge-flow-enabled", "true")
+		kvPut(ctx, flags, "staging.ml.personalization.homepage-ranking-model-v4.shadow-mode", "true")
+		fmt.Printf("  keys: 11\n")
 	}
 }
 
