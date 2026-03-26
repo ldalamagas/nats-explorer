@@ -233,7 +233,7 @@ func renderKVValue(e nc.KVEntry) string {
 	b.WriteString(fmt.Sprintf("Key:      %s\n", e.Key))
 	b.WriteString(fmt.Sprintf("Revision: %d\n", e.Revision))
 	b.WriteString(fmt.Sprintf("Op:       %s\n", e.Op))
-	b.WriteString(fmt.Sprintf("Created:  %s\n\n", e.Created.Format(time.RFC3339)))
+	b.WriteString(fmt.Sprintf("Created:  %s\n\n", e.Created.UTC().Format(time.RFC3339)))
 	b.WriteString("Value:\n")
 	var js json.RawMessage
 	if json.Unmarshal(e.Value, &js) == nil {

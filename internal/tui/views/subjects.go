@@ -160,7 +160,7 @@ func (v SubjectsView) View() string {
 func renderLiveMessages(msgs []nc.LiveMessage) string {
 	var b strings.Builder
 	for _, m := range msgs {
-		b.WriteString(fmt.Sprintf("[%s] %s\n", m.Time.Format(time.TimeOnly), m.Subject))
+		b.WriteString(fmt.Sprintf("[%s] %s\n", m.Time.UTC().Format(time.TimeOnly), m.Subject))
 		preview := string(m.Data)
 		if len(preview) > 200 {
 			preview = preview[:200] + "…"

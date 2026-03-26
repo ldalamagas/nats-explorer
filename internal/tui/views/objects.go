@@ -225,7 +225,7 @@ func renderObjDetail(e nc.ObjEntry) string {
 	b.WriteString(fmt.Sprintf("Name:     %s\n", e.Name))
 	b.WriteString(fmt.Sprintf("Size:     %s\n", humanBytes(e.Size)))
 	b.WriteString(fmt.Sprintf("Chunks:   %d\n", e.Chunks))
-	b.WriteString(fmt.Sprintf("Modified: %s\n", e.Modified.Format(time.RFC3339)))
+	b.WriteString(fmt.Sprintf("Modified: %s\n", e.Modified.UTC().Format(time.RFC3339)))
 	if e.Description != "" {
 		b.WriteString(fmt.Sprintf("Desc:     %s\n", e.Description))
 	}
@@ -233,7 +233,7 @@ func renderObjDetail(e nc.ObjEntry) string {
 		b.WriteString(fmt.Sprintf("Digest:   %s\n", e.Digest))
 	}
 	if !e.Modified.IsZero() {
-		b.WriteString(fmt.Sprintf("Modified: %s\n", e.Modified.Format(time.RFC3339)))
+		b.WriteString(fmt.Sprintf("Modified: %s\n", e.Modified.UTC().Format(time.RFC3339)))
 	}
 	return b.String()
 }
