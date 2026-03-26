@@ -96,7 +96,13 @@ func seedKV(ctx context.Context, js jetstream.JetStream) {
 		})
 		kvPutBytes(ctx, config, "alerting.config", alertingJSON)
 
-		fmt.Printf("  keys: 13\n")
+		// Seed a deleted key so the UI can render tombstone entries.
+		kvPut(ctx, config, "app.deprecated_flag", "legacy-value")
+		if err := config.Delete(ctx, "app.deprecated_flag"); err != nil {
+			fmt.Printf("  delete app.deprecated_flag: %v\n", err)
+		}
+
+		fmt.Printf("  keys: 13 (+ 1 deleted)\n")
 	}
 
 	// sessions bucket (short TTL to simulate real usage)

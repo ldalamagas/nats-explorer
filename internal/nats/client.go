@@ -117,15 +117,19 @@ func (c *Client) ListKVKeys(ctx context.Context, bucket string) ([]KVEntry, erro
 	if err != nil {
 		return nil, err
 	}
-	keys, err := kv.ListKeys(ctx)
+	// WatchAll without IgnoreDeletes so tombstoned keys appear alongside live ones.
+	// Stop() is called immediately after reading initial values — no persistent subscription.
+	watcher, err := kv.WatchAll(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer watcher.Stop()
+
 	var entries []KVEntry
-	for key := range keys.Keys() {
-		entry, err := kv.Get(ctx, key)
-		if err != nil {
-			continue
+	for entry := range watcher.Updates() {
+		if entry == nil {
+			// nil signals end of initial values; subscription is stopped via defer
+			break
 		}
 		entries = append(entries, KVEntry{
 			Key:      entry.Key(),
@@ -135,7 +139,6 @@ func (c *Client) ListKVKeys(ctx context.Context, bucket string) ([]KVEntry, erro
 			Op:       entry.Operation().String(),
 		})
 	}
-	// KeyLister.Stop() stops iteration, no Err() method; errors are silent here
 	return entries, nil
 }
 
