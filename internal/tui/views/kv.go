@@ -2,6 +2,7 @@ package views
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -234,6 +235,14 @@ func renderKVValue(e nc.KVEntry) string {
 	b.WriteString(fmt.Sprintf("Op:       %s\n", e.Op))
 	b.WriteString(fmt.Sprintf("Created:  %s\n\n", e.Created.Format(time.RFC3339)))
 	b.WriteString("Value:\n")
+	var js json.RawMessage
+	if json.Unmarshal(e.Value, &js) == nil {
+		pretty, err := json.MarshalIndent(js, "", "  ")
+		if err == nil {
+			b.WriteString(string(pretty))
+			return b.String()
+		}
+	}
 	b.WriteString(string(e.Value))
 	return b.String()
 }

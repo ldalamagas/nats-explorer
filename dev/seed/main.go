@@ -69,7 +69,34 @@ func seedKV(ctx context.Context, js jetstream.JetStream) {
 		kvPut(ctx, config, "db.port", "5432")
 		kvPut(ctx, config, "db.max_connections", "100")
 		kvPut(ctx, config, "cache.ttl_seconds", "300")
-		fmt.Printf("  keys: 10\n")
+
+		dbJSON, _ := json.Marshal(map[string]any{
+			"host":            "postgres.internal",
+			"port":            5432,
+			"name":            "appdb",
+			"max_connections": 100,
+			"idle_connections": 10,
+			"ssl_mode":        "require",
+		})
+		kvPutBytes(ctx, config, "db.config", dbJSON)
+
+		rateLimitJSON, _ := json.Marshal(map[string]any{
+			"enabled":           true,
+			"requests_per_min":  600,
+			"burst":             50,
+			"exclude_paths":     []string{"/health", "/metrics"},
+		})
+		kvPutBytes(ctx, config, "server.rate_limit", rateLimitJSON)
+
+		alertingJSON, _ := json.Marshal(map[string]any{
+			"slack_webhook": "https://hooks.slack.com/services/xxx/yyy/zzz",
+			"pagerduty_key": "abc123",
+			"notify_on":     []string{"error", "critical"},
+			"quiet_hours":   map[string]string{"start": "22:00", "end": "08:00"},
+		})
+		kvPutBytes(ctx, config, "alerting.config", alertingJSON)
+
+		fmt.Printf("  keys: 13\n")
 	}
 
 	// sessions bucket (short TTL to simulate real usage)

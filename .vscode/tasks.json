@@ -5,7 +5,7 @@
     {
       "label": "build",
       "type": "shell",
-      "command": "go build -v -o nats-explorer .",
+      "command": "go build -v -o bin/nats-explorer .",
       "group": {
         "kind": "build",
         "isDefault": true
@@ -37,6 +37,17 @@
         "panel": "shared"
       },
       "problemMatcher": "$go"
+    },
+    {
+      "label": "clean",
+      "type": "shell",
+      "command": "rm -rf bin/",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
     },
     // ── Run ───────────────────────────────────────────────────────────────
     {
