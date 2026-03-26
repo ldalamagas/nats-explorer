@@ -42,9 +42,11 @@ internal/
 
 ## CLI flags
 ```
---url    NATS server URL (default: $NATS_URL or nats://localhost:4222)
---creds  path to .creds file
---nkey   path to NKey seed file
+--url       NATS server URL (default: $NATS_URL or nats://localhost:4222)
+--creds     path to .creds file
+--nkey      path to NKey seed file
+--user      username for authentication
+--password  password for authentication
 ```
 
 ## NATS API notes (nats.go v1.50+)

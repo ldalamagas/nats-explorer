@@ -14,6 +14,8 @@ func main() {
 	url := flag.String("url", "", "NATS server URL (default: $NATS_URL or nats://localhost:4222)")
 	creds := flag.String("creds", "", "Path to NATS credentials file")
 	nkey := flag.String("nkey", "", "Path to NKey seed file")
+	user := flag.String("user", "", "Username for authentication")
+	password := flag.String("password", "", "Password for authentication")
 	flag.Parse()
 
 	natsURL := *url
@@ -24,7 +26,7 @@ func main() {
 		natsURL = "nats://localhost:4222"
 	}
 
-	connectOpts := nc.BuildConnectOptions(*creds, *nkey)
+	connectOpts := nc.BuildConnectOptions(*creds, *nkey, *user, *password)
 	client, err := nc.Connect(natsURL, connectOpts...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect to NATS: %v\n", err)

@@ -18,8 +18,8 @@ type Client struct {
 // ConnectOptions holds optional connection parameters.
 type ConnectOptions = nats.Option
 
-// BuildConnectOptions constructs nats.Options from optional creds/nkey paths.
-func BuildConnectOptions(credsFile, nkeyFile string) []nats.Option {
+// BuildConnectOptions constructs nats.Options from optional creds/nkey paths and user/password.
+func BuildConnectOptions(credsFile, nkeyFile, user, password string) []nats.Option {
 	var opts []nats.Option
 	if credsFile != "" {
 		opts = append(opts, nats.UserCredentials(credsFile))
@@ -28,6 +28,9 @@ func BuildConnectOptions(credsFile, nkeyFile string) []nats.Option {
 		if opt, err := nats.NkeyOptionFromSeed(nkeyFile); err == nil {
 			opts = append(opts, opt)
 		}
+	}
+	if user != "" || password != "" {
+		opts = append(opts, nats.UserInfo(user, password))
 	}
 	return opts
 }
