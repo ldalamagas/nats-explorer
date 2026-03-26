@@ -130,7 +130,7 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 		}
 		v.keyList.SetItems(items)
 		if len(msg.Keys) > 0 {
-			v.valueView.SetContent(renderKVValue(msg.Keys[0]))
+			v.valueView.SetContent(renderKVValue(msg.Keys[0], v.valueView.Width))
 		}
 
 	case KVErrMsg:
@@ -151,7 +151,7 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 				v.pane = kvPaneValue
 				if sel, ok := v.keyList.SelectedItem().(kvKeyItem); ok {
 					v.selectedKey = sel.entry.Key
-					v.valueView.SetContent(renderKVValue(sel.entry))
+					v.valueView.SetContent(renderKVValue(sel.entry, v.valueView.Width))
 				}
 			}
 		case "esc", "backspace":
@@ -175,7 +175,7 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 		if _, ok := msg.(tea.KeyMsg); ok {
 			if sel, ok := v.keyList.SelectedItem().(kvKeyItem); ok {
 				v.selectedKey = sel.entry.Key
-				v.valueView.SetContent(renderKVValue(sel.entry))
+				v.valueView.SetContent(renderKVValue(sel.entry, v.valueView.Width))
 			}
 		}
 	case kvPaneValue:
@@ -241,7 +241,7 @@ func humanBytes(b uint64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-func renderKVValue(e nc.KVEntry) string {
+func renderKVValue(e nc.KVEntry, width int) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("Key:      %s\n", e.Key))
 	b.WriteString(fmt.Sprintf("Revision: %d\n", e.Revision))
@@ -253,9 +253,34 @@ func renderKVValue(e nc.KVEntry) string {
 		pretty, err := json.MarshalIndent(js, "", "  ")
 		if err == nil {
 			b.WriteString(string(pretty))
-			return b.String()
+			return wrapText(b.String(), width)
 		}
 	}
 	b.WriteString(string(e.Value))
-	return b.String()
+	return wrapText(b.String(), width)
+}
+
+// wrapText wraps lines in s that exceed width characters, breaking at the last
+// space within the limit or hard-breaking if no space is found.
+func wrapText(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	var out strings.Builder
+	for i, line := range strings.Split(s, "\n") {
+		if i > 0 {
+			out.WriteByte('\n')
+		}
+		for len(line) > width {
+			cut := width
+			if idx := strings.LastIndex(line[:width], " "); idx > 0 {
+				cut = idx + 1
+			}
+			out.WriteString(line[:cut])
+			out.WriteByte('\n')
+			line = line[cut:]
+		}
+		out.WriteString(line)
+	}
+	return out.String()
 }
