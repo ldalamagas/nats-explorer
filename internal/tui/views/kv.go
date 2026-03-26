@@ -14,17 +14,177 @@ import (
 	nc "github.com/ldalamagas/nats-explorer/internal/nats"
 )
 
+// maxKeyLines caps how many lines a single key may occupy before truncation.
+const maxKeyLines = 4
+
+// kvKeyList is a scrollable key list that renders each item at exactly the
+// height it needs (key lines + Op line) rather than a uniform height for all.
+type kvKeyList struct {
+	keys       []nc.KVEntry
+	selected   int
+	width      int
+	height     int
+	vp         viewport.Model
+	itemStyles list.DefaultItemStyles
+	listStyles list.Styles
+}
+
+func newKVKeyList() kvKeyList {
+	return kvKeyList{
+		itemStyles: list.NewDefaultItemStyles(),
+		listStyles: list.DefaultStyles(),
+		vp:         viewport.New(0, 0),
+	}
+}
+
+func (l *kvKeyList) textWidth() int {
+	return l.width - l.itemStyles.NormalTitle.GetHorizontalFrameSize()
+}
+
+func (l *kvKeyList) itemHeight(key string) int {
+	textW := l.textWidth()
+	if textW <= 0 {
+		return 2
+	}
+	lines := (len(key) + textW - 1) / textW
+	if lines > maxKeyLines {
+		lines = maxKeyLines
+	}
+	return lines + 1 // +1 for Op line
+}
+
+func (l *kvKeyList) renderItem(idx int, k nc.KVEntry) string {
+	selected := idx == l.selected
+	var titleStyle, descStyle lipgloss.Style
+	if selected {
+		titleStyle = l.itemStyles.SelectedTitle
+		descStyle = l.itemStyles.SelectedDesc
+	} else {
+		titleStyle = l.itemStyles.NormalTitle
+		descStyle = l.itemStyles.NormalDesc
+	}
+
+	textW := l.textWidth()
+	if textW <= 0 {
+		return ""
+	}
+
+	key := k.Key
+	op := k.Op
+	keyRows := l.itemHeight(k.Key) - 1
+
+	var sb strings.Builder
+	for i := 0; i < keyRows; i++ {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
+		switch {
+		case len(key) == 0:
+			sb.WriteString(titleStyle.Render(""))
+		case len(key) <= textW:
+			sb.WriteString(titleStyle.Render(key))
+			key = ""
+		case i == keyRows-1:
+			// Last available row but key still has more — truncate.
+			sb.WriteString(titleStyle.Render(key[:textW-1] + "…"))
+			key = ""
+		default:
+			sb.WriteString(titleStyle.Render(key[:textW]))
+			key = key[textW:]
+		}
+	}
+	sb.WriteByte('\n')
+	sb.WriteString(descStyle.Render(op))
+	return sb.String()
+}
+
+func (l *kvKeyList) refresh() {
+	if l.width == 0 {
+		return
+	}
+	var sb strings.Builder
+	for i, k := range l.keys {
+		if i > 0 {
+			sb.WriteString("\n\n") // \n ends previous item's last line; \n adds blank spacing line
+		}
+		sb.WriteString(l.renderItem(i, k))
+	}
+	l.vp.SetContent(sb.String())
+	l.scrollToSelected()
+}
+
+func (l *kvKeyList) scrollToSelected() {
+	if len(l.keys) == 0 {
+		return
+	}
+	y := 0
+	for i := 0; i < l.selected; i++ {
+		y += l.itemHeight(l.keys[i].Key) + 1 // +1 for spacing line
+	}
+	itemH := l.itemHeight(l.keys[l.selected].Key)
+	if y < l.vp.YOffset {
+		l.vp.SetYOffset(y)
+	} else if y+itemH > l.vp.YOffset+l.vp.Height {
+		l.vp.SetYOffset(y + itemH - l.vp.Height)
+	}
+}
+
+func (l *kvKeyList) SetKeys(keys []nc.KVEntry) {
+	l.keys = keys
+	l.selected = 0
+	l.vp.SetYOffset(0)
+	l.refresh()
+}
+
+func (l *kvKeyList) SetSize(w, h int) {
+	l.width = w
+	l.height = h
+	l.vp.Width = w
+	l.vp.Height = h - 1 // reserve 1 line for the title bar
+	if l.vp.Height < 0 {
+		l.vp.Height = 0
+	}
+	l.refresh()
+}
+
+func (l *kvKeyList) Selected() *nc.KVEntry {
+	if l.selected >= 0 && l.selected < len(l.keys) {
+		return &l.keys[l.selected]
+	}
+	return nil
+}
+
+func (l *kvKeyList) Update(msg tea.Msg) {
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return
+	}
+	switch keyMsg.String() {
+	case "up", "k":
+		if l.selected > 0 {
+			l.selected--
+			l.refresh()
+		}
+	case "down", "j":
+		if l.selected < len(l.keys)-1 {
+			l.selected++
+			l.refresh()
+		}
+	}
+}
+
+func (l *kvKeyList) View() string {
+	titleBar := l.listStyles.TitleBar.Width(l.width).Render(
+		l.listStyles.Title.Render("Keys"),
+	)
+	return lipgloss.JoinVertical(lipgloss.Left, titleBar, l.vp.View())
+}
+
 type kvBucketItem struct{ info nc.KVBucketInfo }
 
 func (k kvBucketItem) Title() string       { return k.info.Name }
 func (k kvBucketItem) Description() string { return fmt.Sprintf("%d keys · %s", k.info.Keys, humanBytes(k.info.Bytes)) }
 func (k kvBucketItem) FilterValue() string { return k.info.Name }
-
-type kvKeyItem struct{ entry nc.KVEntry }
-
-func (k kvKeyItem) Title() string       { return k.entry.Key }
-func (k kvKeyItem) Description() string { return k.entry.Op }
-func (k kvKeyItem) FilterValue() string { return k.entry.Key }
 
 type KVLoadedMsg struct{ Buckets []nc.KVBucketInfo }
 type KVKeysLoadedMsg struct{ Bucket string; Keys []nc.KVEntry }
@@ -44,10 +204,9 @@ type KVView struct {
 	height      int
 	pane        kvPane
 	bucketList  list.Model
-	keyList     list.Model
+	keyList     kvKeyList
 	valueView   viewport.Model
 	buckets     []nc.KVBucketInfo
-	keys        []nc.KVEntry
 	selected    string
 	selectedKey string
 	err         error
@@ -55,28 +214,20 @@ type KVView struct {
 }
 
 func NewKVView(client *nc.Client) KVView {
-	delg := list.NewDefaultDelegate()
-	delg.ShowDescription = true
+	bucketDelg := list.NewDefaultDelegate()
+	bucketDelg.ShowDescription = true
 
-	bl := list.New(nil, delg, 0, 0)
+	bl := list.New(nil, bucketDelg, 0, 0)
 	bl.Title = "KV Buckets"
 	bl.SetShowStatusBar(false)
 	bl.SetFilteringEnabled(true)
 	bl.SetShowHelp(false)
 
-	kl := list.New(nil, delg, 0, 0)
-	kl.Title = "Keys"
-	kl.SetShowStatusBar(false)
-	kl.SetFilteringEnabled(true)
-	kl.SetShowHelp(false)
-
-	vv := viewport.New(0, 0)
-
 	return KVView{
 		client:     client,
 		bucketList: bl,
-		keyList:    kl,
-		valueView:  vv,
+		keyList:    newKVKeyList(),
+		valueView:  viewport.New(0, 0),
 	}
 }
 
@@ -123,14 +274,9 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 		v.bucketList.SetItems(items)
 
 	case KVKeysLoadedMsg:
-		v.keys = msg.Keys
-		items := make([]list.Item, len(msg.Keys))
-		for i, k := range msg.Keys {
-			items[i] = kvKeyItem{k}
-		}
-		v.keyList.SetItems(items)
-		if len(msg.Keys) > 0 {
-			v.valueView.SetContent(renderKVValue(msg.Keys[0], v.valueView.Width))
+		v.keyList.SetKeys(msg.Keys)
+		if sel := v.keyList.Selected(); sel != nil {
+			v.valueView.SetContent(renderKVValue(*sel, v.valueView.Width))
 		}
 
 	case KVErrMsg:
@@ -149,9 +295,9 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 				}
 			case kvPaneKeys:
 				v.pane = kvPaneValue
-				if sel, ok := v.keyList.SelectedItem().(kvKeyItem); ok {
-					v.selectedKey = sel.entry.Key
-					v.valueView.SetContent(renderKVValue(sel.entry, v.valueView.Width))
+				if sel := v.keyList.Selected(); sel != nil {
+					v.selectedKey = sel.Key
+					v.valueView.SetContent(renderKVValue(*sel, v.valueView.Width))
 				}
 			}
 		case "esc", "backspace":
@@ -170,12 +316,11 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 		v.bucketList, cmd = v.bucketList.Update(msg)
 		cmds = append(cmds, cmd)
 	case kvPaneKeys:
-		v.keyList, cmd = v.keyList.Update(msg)
-		cmds = append(cmds, cmd)
+		v.keyList.Update(msg)
 		if _, ok := msg.(tea.KeyMsg); ok {
-			if sel, ok := v.keyList.SelectedItem().(kvKeyItem); ok {
-				v.selectedKey = sel.entry.Key
-				v.valueView.SetContent(renderKVValue(sel.entry, v.valueView.Width))
+			if sel := v.keyList.Selected(); sel != nil {
+				v.selectedKey = sel.Key
+				v.valueView.SetContent(renderKVValue(*sel, v.valueView.Width))
 			}
 		}
 	case kvPaneValue:
