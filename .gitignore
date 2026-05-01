@@ -4,3 +4,5 @@ bin/
 *.creds
 
 nats-explorer
+
+.idea/
