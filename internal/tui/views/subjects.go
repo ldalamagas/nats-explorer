@@ -110,8 +110,17 @@ func (v SubjectsView) Update(msg tea.Msg) (SubjectsView, tea.Cmd) {
 			}
 		case "esc", "backspace":
 			if v.pane == subPaneMessages {
+				if v.cancelSub != nil {
+					v.cancelSub()
+					v.cancelSub = nil
+				}
 				v.pane = subPaneInput
 				v.input.Focus()
+				v.subscribed = false
+				v.subject = ""
+				v.messages = nil
+			} else if v.pane == subPaneInput {
+				// Do nothing or handle backspace in input
 			}
 		}
 	}

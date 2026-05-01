@@ -35,7 +35,7 @@ internal/
 - `1`–`3` — jump directly to a tab
 - `↑↓` / `j`/`k` — navigate lists
 - `enter` — drill down (bucket → keys, etc.)
-- `esc` / `backspace` — go back one level
+- `esc` / `backspace` — go back one level or unsubscribes if listening to a subject
 - `r` — refresh current tab data
 - `/` — filter (built-in bubbles list filter)
 - `q` / `ctrl+c` — quit
