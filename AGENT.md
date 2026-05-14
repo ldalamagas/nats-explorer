@@ -20,6 +20,7 @@ internal/
     views/
       kv.go                     — KV Store tab (buckets → keys → value)
       objects.go                — Object Store tab (buckets → objects → detail)
+      streams.go                — Streams tab (list JetStream streams → config + state)
       subjects.go               — Core NATS tab (live subscribe, real-time message feed)
 ```
 
@@ -27,15 +28,17 @@ internal/
 
 - **KV Store**: list buckets, browse keys, view value + metadata
 - **Object Store**: list buckets, list objects, view object metadata
+- **Streams**: list all JetStream streams, drill into a stream to view config + state
 - **Subjects** (Core NATS): live subscribe to any subject (wildcards `*` and `>` supported)
 
 ## Key UX conventions
 
-- `tab` / `shift+tab` — switch between tabs
-- `1`–`3` — jump directly to a tab
+- `tab` / `shift+tab` / `right` / `left` — switch between tabs
+- `1` KV Store, `2` Object Store, `3` Streams, `4` Subjects — jump directly to a tab
 - `↑↓` / `j`/`k` — navigate lists
 - `enter` — drill down (bucket → keys, etc.)
 - `esc` / `backspace` — go back one level or unsubscribes if listening to a subject
+- `i` — show bucket info (KV Store and Object Store, available at any depth within a bucket)
 - `r` — refresh current tab data
 - `/` — filter (built-in bubbles list filter)
 - `q` / `ctrl+c` — quit
@@ -58,18 +61,9 @@ internal/
 - `ObjectInfo.ModTime` (not `.Modified`)
 - `nats.NkeyOptionFromSeed(path)` returns `(nats.Option, error)` — handle both
 
-## Architecture patterns
+## Architecture notes
 
-- Each view (kv, objects, subjects) is a self-contained struct with `Init()`, `Update()`, `View()`, and `SetSize()` methods — compatible with Bubble Tea's model pattern.
-- Data loading is done via `tea.Cmd` (async), returning typed msg structs.
-- The root `App` in `tui/app.go` routes keyboard events and size changes to the active view, and data-loading messages to all views.
 - All NATS data access is in `internal/nats/client.go` — views never import `nats.go` directly.
-
-## Build
-```
-go build -o bin/nats-explorer .   # produces ./bin/nats-explorer
-go build ./...                    # build all packages (no output)
-```
 
 ## Dev / testing setup
 
