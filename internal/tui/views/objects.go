@@ -33,6 +33,7 @@ func (o objEntryItem) FilterValue() string { return o.entry.Name }
 
 type ObjLoadedMsg struct{ Buckets []nc.ObjBucketInfo }
 type ObjEntriesLoadedMsg struct{ Bucket string; Entries []nc.ObjEntry }
+type ObjInfoLoadedMsg struct{ Detail *nc.ObjBucketDetail }
 type ObjErrMsg struct{ Err error }
 
 type objPane int
@@ -44,19 +45,21 @@ const (
 )
 
 type ObjView struct {
-	client          *nc.Client
-	width           int
-	height          int
-	pane            objPane
-	bucketList      list.Model
-	entryList       list.Model
-	detailView      viewport.Model
-	buckets         []nc.ObjBucketInfo
-	entries         []nc.ObjEntry
-	selected        string
-	selectedEntry   string
-	err             error
-	loading         bool
+	client        *nc.Client
+	width         int
+	height        int
+	pane          objPane
+	bucketList    list.Model
+	entryList     list.Model
+	detailView    viewport.Model
+	infoView      viewport.Model
+	showInfo      bool
+	buckets       []nc.ObjBucketInfo
+	entries       []nc.ObjEntry
+	selected      string
+	selectedEntry string
+	err           error
+	loading       bool
 }
 
 func NewObjView(client *nc.Client) ObjView {
@@ -82,6 +85,7 @@ func NewObjView(client *nc.Client) ObjView {
 		bucketList: bl,
 		entryList:  el,
 		detailView: dv,
+		infoView:   viewport.New(0, 0),
 	}
 }
 
@@ -101,6 +105,18 @@ func (v ObjView) loadBuckets() tea.Cmd {
 	}
 }
 
+func (v ObjView) loadObjInfo(bucket string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		detail, err := v.client.GetObjBucketInfo(ctx, bucket)
+		if err != nil {
+			return ObjErrMsg{Err: err}
+		}
+		return ObjInfoLoadedMsg{Detail: detail}
+	}
+}
+
 func (v ObjView) loadEntries(bucket string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -116,6 +132,17 @@ func (v ObjView) loadEntries(bucket string) tea.Cmd {
 func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
+
+	if v.showInfo {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			if keyMsg.String() == "esc" || keyMsg.String() == "backspace" {
+				v.showInfo = false
+				return v, nil
+			}
+		}
+		v.infoView, cmd = v.infoView.Update(msg)
+		return v, cmd
+	}
 
 	switch msg := msg.(type) {
 	case ObjLoadedMsg:
@@ -138,6 +165,11 @@ func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 			v.detailView.SetContent(renderObjDetail(msg.Entries[0]))
 		}
 
+	case ObjInfoLoadedMsg:
+		v.infoView.SetContent(renderObjInfo(msg.Detail))
+		v.infoView.GotoTop()
+		v.showInfo = true
+
 	case ObjErrMsg:
 		v.err = msg.Err
 		v.loading = false
@@ -159,14 +191,32 @@ func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 					v.detailView.SetContent(renderObjDetail(sel.entry))
 				}
 			}
+		case "i":
+			var bucket string
+			switch v.pane {
+			case objPaneBuckets:
+				if sel, ok := v.bucketList.SelectedItem().(objBucketItem); ok {
+					bucket = sel.info.Name
+				}
+			case objPaneEntries, objPaneDetail:
+				bucket = v.selected
+			}
+			if bucket != "" {
+				return v, v.loadObjInfo(bucket)
+			}
 		case "esc", "backspace":
 			if v.pane > objPaneBuckets {
 				v.pane--
 			}
 			return v, nil
 		case "r":
-			v.loading = true
-			return v, v.loadBuckets()
+			switch v.pane {
+			case objPaneBuckets:
+				v.loading = true
+				return v, v.loadBuckets()
+			case objPaneEntries, objPaneDetail:
+				return v, v.loadEntries(v.selected)
+			}
 		}
 	}
 
@@ -192,6 +242,9 @@ func (v ObjView) Update(msg tea.Msg) (ObjView, tea.Cmd) {
 }
 
 func (v ObjView) Breadcrumb() string {
+	if v.showInfo {
+		return "Object Store > " + v.selected + " > Info"
+	}
 	switch v.pane {
 	case objPaneEntries:
 		return "Object Store > " + v.selected
@@ -210,6 +263,8 @@ func (v *ObjView) SetSize(w, h int) {
 	v.entryList.SetSize(half-2, listH)
 	v.detailView.Width = half - 2
 	v.detailView.Height = listH
+	v.infoView.Width = w - 2
+	v.infoView.Height = h - 2
 }
 
 func (v ObjView) View() string {
@@ -218,6 +273,9 @@ func (v ObjView) View() string {
 	}
 	if v.err != nil {
 		return fmt.Sprintf("  Error: %s", v.err)
+	}
+	if v.showInfo {
+		return v.infoView.View()
 	}
 
 	switch v.pane {
@@ -231,6 +289,29 @@ func (v ObjView) View() string {
 		return v.detailView.View()
 	}
 	return ""
+}
+
+func renderObjInfo(d *nc.ObjBucketDetail) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Information for Object Store Bucket %s\n\n", d.Name)
+	b.WriteString("Configuration:\n\n")
+	fmt.Fprintf(&b, "         Bucket Name: %s\n", d.Name)
+	if d.Description != "" {
+		fmt.Fprintf(&b, "         Description: %s\n", d.Description)
+	}
+	if d.TTL == 0 {
+		b.WriteString("         Maximum Age: unlimited\n")
+	} else {
+		fmt.Fprintf(&b, "         Maximum Age: %s\n", d.TTL)
+	}
+	fmt.Fprintf(&b, "  Backing Store Size: %s\n", humanBytes(d.Size))
+	fmt.Fprintf(&b, "    JetStream Stream: %s\n", d.StreamName)
+	fmt.Fprintf(&b, "             Storage: %s\n", capitalizeFirst(d.Storage))
+	fmt.Fprintf(&b, "            Replicas: %d\n", d.Replicas)
+	if d.Sealed {
+		b.WriteString("              Sealed: true\n")
+	}
+	return b.String()
 }
 
 func renderObjDetail(e nc.ObjEntry) string {

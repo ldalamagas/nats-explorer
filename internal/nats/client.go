@@ -219,6 +219,160 @@ func (c *Client) ListObjEntries(ctx context.Context, bucket string) ([]ObjEntry,
 	return entries, nil
 }
 
+// --- Streams ---
+
+type StreamEntry struct {
+	Name        string
+	Description string
+	Subjects    []string
+	Storage     string
+	Replicas    int
+	Retention   string
+	MaxMsgs     int64
+	MaxBytes    int64
+	MaxAge      time.Duration
+	MaxMsgSize  int32
+	Duplicates  time.Duration
+	Created     time.Time
+	Messages    uint64
+	Bytes       uint64
+	Consumers   int
+	FirstSeq    uint64
+	FirstTime   time.Time
+	LastSeq     uint64
+	LastTime    time.Time
+	NumDeleted  int
+	NumSubjects uint64
+}
+
+func (c *Client) ListStreams(ctx context.Context) ([]StreamEntry, error) {
+	var entries []StreamEntry
+	iter := c.js.ListStreams(ctx)
+	for info := range iter.Info() {
+		cfg := info.Config
+		st := info.State
+		replicas := cfg.Replicas
+		if replicas == 0 {
+			replicas = 1
+		}
+		entries = append(entries, StreamEntry{
+			Name:        cfg.Name,
+			Description: cfg.Description,
+			Subjects:    cfg.Subjects,
+			Storage:     cfg.Storage.String(),
+			Replicas:    replicas,
+			Retention:   cfg.Retention.String(),
+			MaxMsgs:     cfg.MaxMsgs,
+			MaxBytes:    cfg.MaxBytes,
+			MaxAge:      cfg.MaxAge,
+			MaxMsgSize:  cfg.MaxMsgSize,
+			Duplicates:  cfg.Duplicates,
+			Created:     info.Created,
+			Messages:    st.Msgs,
+			Bytes:       st.Bytes,
+			Consumers:   st.Consumers,
+			FirstSeq:    st.FirstSeq,
+			FirstTime:   st.FirstTime,
+			LastSeq:     st.LastSeq,
+			LastTime:    st.LastTime,
+			NumDeleted:  st.NumDeleted,
+			NumSubjects: st.NumSubjects,
+		})
+	}
+	if err := iter.Err(); err != nil {
+		return entries, err
+	}
+	return entries, nil
+}
+
+// --- KV Bucket Detail ---
+
+type KVBucketDetail struct {
+	Name         string
+	Keys         uint64
+	Bytes        uint64
+	History      int64
+	TTL          time.Duration
+	Storage      string
+	Replicas     int
+	MaxBytes     int64
+	MaxValueSize int32
+	StreamName   string
+	MirrorName   string
+	MirrorDomain string
+}
+
+func (c *Client) GetKVBucketInfo(ctx context.Context, bucket string) (*KVBucketDetail, error) {
+	kv, err := c.js.KeyValue(ctx, bucket)
+	if err != nil {
+		return nil, err
+	}
+	status, err := kv.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg := status.Config()
+	replicas := cfg.Replicas
+	if replicas == 0 {
+		replicas = 1
+	}
+	detail := &KVBucketDetail{
+		Name:         status.Bucket(),
+		Keys:         status.Values(),
+		Bytes:        status.Bytes(),
+		History:      status.History(),
+		TTL:          status.TTL(),
+		Storage:      cfg.Storage.String(),
+		Replicas:     replicas,
+		MaxBytes:     cfg.MaxBytes,
+		MaxValueSize: cfg.MaxValueSize,
+		StreamName:   "KV_" + bucket,
+	}
+	if cfg.Mirror != nil {
+		detail.MirrorName = strings.TrimPrefix(cfg.Mirror.Name, "KV_")
+		detail.MirrorDomain = cfg.Mirror.Domain
+	}
+	return detail, nil
+}
+
+// --- Object Bucket Detail ---
+
+type ObjBucketDetail struct {
+	Name        string
+	Description string
+	Size        uint64
+	TTL         time.Duration
+	Storage     string
+	Replicas    int
+	Sealed      bool
+	StreamName  string
+}
+
+func (c *Client) GetObjBucketInfo(ctx context.Context, bucket string) (*ObjBucketDetail, error) {
+	obs, err := c.js.ObjectStore(ctx, bucket)
+	if err != nil {
+		return nil, err
+	}
+	status, err := obs.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	replicas := status.Replicas()
+	if replicas == 0 {
+		replicas = 1
+	}
+	return &ObjBucketDetail{
+		Name:        status.Bucket(),
+		Description: status.Description(),
+		Size:        status.Size(),
+		TTL:         status.TTL(),
+		Storage:     status.Storage().String(),
+		Replicas:    replicas,
+		Sealed:      status.Sealed(),
+		StreamName:  "OBJ_" + bucket,
+	}, nil
+}
+
 // --- Core NATS ---
 
 type LiveMessage struct {

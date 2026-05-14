@@ -15,10 +15,11 @@ type tab int
 const (
 	tabKV tab = iota
 	tabObjects
+	tabStreams
 	tabSubjects
 )
 
-var tabNames = []string{"KV Store", "Object Store", "Subjects"}
+var tabNames = []string{"KV Store", "Object Store", "Streams", "Subjects"}
 
 type App struct {
 	client   *nc.Client
@@ -28,6 +29,7 @@ type App struct {
 
 	kvView       views.KVView
 	objView      views.ObjView
+	streamsView  views.StreamsView
 	subjectsView views.SubjectsView
 }
 
@@ -36,6 +38,7 @@ func NewApp(client *nc.Client) App {
 		client:       client,
 		kvView:       views.NewKVView(client),
 		objView:      views.NewObjView(client),
+		streamsView:  views.NewStreamsView(client),
 		subjectsView: views.NewSubjectsView(client),
 	}
 }
@@ -44,6 +47,7 @@ func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.kvView.Init(),
 		a.objView.Init(),
+		a.streamsView.Init(),
 		a.subjectsView.Init(),
 	)
 }
@@ -59,6 +63,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		contentW := msg.Width - 2
 		a.kvView.SetSize(contentW, contentH)
 		a.objView.SetSize(contentW, contentH)
+		a.streamsView.SetSize(contentW, contentH)
 		a.subjectsView.SetSize(contentW, contentH)
 		return a, nil
 
@@ -79,6 +84,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.activeTab = tabObjects
 			return a, nil
 		case "3":
+			a.activeTab = tabStreams
+			return a, nil
+		case "4":
 			a.activeTab = tabSubjects
 			return a, nil
 		}
@@ -91,6 +99,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.kvView, cmd = a.kvView.Update(msg)
 	case tabObjects:
 		a.objView, cmd = a.objView.Update(msg)
+	case tabStreams:
+		a.streamsView, cmd = a.streamsView.Update(msg)
 	case tabSubjects:
 		a.subjectsView, cmd = a.subjectsView.Update(msg)
 	}
@@ -106,6 +116,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.ObjLoadedMsg, views.ObjEntriesLoadedMsg, views.ObjErrMsg:
 		if a.activeTab != tabObjects {
 			a.objView, cmd = a.objView.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+	case views.StreamsLoadedMsg, views.StreamsErrMsg:
+		if a.activeTab != tabStreams {
+			a.streamsView, cmd = a.streamsView.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -149,6 +164,8 @@ func (a App) View() string {
 		breadcrumb = a.kvView.Breadcrumb()
 	case tabObjects:
 		breadcrumb = a.objView.Breadcrumb()
+	case tabStreams:
+		breadcrumb = a.streamsView.Breadcrumb()
 	case tabSubjects:
 		breadcrumb = "Subjects"
 	}
@@ -161,6 +178,8 @@ func (a App) View() string {
 		b.WriteString(a.kvView.View())
 	case tabObjects:
 		b.WriteString(a.objView.View())
+	case tabStreams:
+		b.WriteString(a.streamsView.View())
 	case tabSubjects:
 		b.WriteString(a.subjectsView.View())
 	}
@@ -172,9 +191,14 @@ func (a App) View() string {
 		hint("↑↓", "navigate"),
 		hint("enter", "select"),
 		hint("esc", "back"),
+	}
+	if a.activeTab == tabKV || a.activeTab == tabObjects {
+		hints = append(hints, hint("i", "info"))
+	}
+	hints = append(hints,
 		hint("r", "refresh"),
 		hint("q", "quit"),
-	}
+	)
 	b.WriteString(lipgloss.PlaceHorizontal(a.width, lipgloss.Left, strings.Join(hints, "  ")))
 
 	return b.String()

@@ -188,6 +188,7 @@ func (k kvBucketItem) FilterValue() string { return k.info.Name }
 
 type KVLoadedMsg struct{ Buckets []nc.KVBucketInfo }
 type KVKeysLoadedMsg struct{ Bucket string; Keys []nc.KVEntry }
+type KVInfoLoadedMsg struct{ Detail *nc.KVBucketDetail }
 type KVErrMsg struct{ Err error }
 
 type kvPane int
@@ -206,6 +207,8 @@ type KVView struct {
 	bucketList  list.Model
 	keyList     kvKeyList
 	valueView   viewport.Model
+	infoView    viewport.Model
+	showInfo    bool
 	buckets     []nc.KVBucketInfo
 	selected    string
 	selectedKey string
@@ -228,6 +231,7 @@ func NewKVView(client *nc.Client) KVView {
 		bucketList: bl,
 		keyList:    newKVKeyList(),
 		valueView:  viewport.New(0, 0),
+		infoView:   viewport.New(0, 0),
 	}
 }
 
@@ -247,6 +251,18 @@ func (v KVView) loadBuckets() tea.Cmd {
 	}
 }
 
+func (v KVView) loadKVInfo(bucket string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		detail, err := v.client.GetKVBucketInfo(ctx, bucket)
+		if err != nil {
+			return KVErrMsg{Err: err}
+		}
+		return KVInfoLoadedMsg{Detail: detail}
+	}
+}
+
 func (v KVView) loadKeys(bucket string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -263,6 +279,17 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
+	if v.showInfo {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			if keyMsg.String() == "esc" || keyMsg.String() == "backspace" {
+				v.showInfo = false
+				return v, nil
+			}
+		}
+		v.infoView, cmd = v.infoView.Update(msg)
+		return v, cmd
+	}
+
 	switch msg := msg.(type) {
 	case KVLoadedMsg:
 		v.buckets = msg.Buckets
@@ -278,6 +305,11 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 		if sel := v.keyList.Selected(); sel != nil {
 			v.valueView.SetContent(renderKVValue(*sel, v.valueView.Width))
 		}
+
+	case KVInfoLoadedMsg:
+		v.infoView.SetContent(renderKVInfo(msg.Detail))
+		v.infoView.GotoTop()
+		v.showInfo = true
 
 	case KVErrMsg:
 		v.err = msg.Err
@@ -300,14 +332,32 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 					v.valueView.SetContent(renderKVValue(*sel, v.valueView.Width))
 				}
 			}
+		case "i":
+			var bucket string
+			switch v.pane {
+			case kvPaneBuckets:
+				if sel, ok := v.bucketList.SelectedItem().(kvBucketItem); ok {
+					bucket = sel.info.Name
+				}
+			case kvPaneKeys, kvPaneValue:
+				bucket = v.selected
+			}
+			if bucket != "" {
+				return v, v.loadKVInfo(bucket)
+			}
 		case "esc", "backspace":
 			if v.pane > kvPaneBuckets {
 				v.pane--
 			}
 			return v, nil
 		case "r":
-			v.loading = true
-			return v, v.loadBuckets()
+			switch v.pane {
+			case kvPaneBuckets:
+				v.loading = true
+				return v, v.loadBuckets()
+			case kvPaneKeys, kvPaneValue:
+				return v, v.loadKeys(v.selected)
+			}
 		}
 	}
 
@@ -332,6 +382,9 @@ func (v KVView) Update(msg tea.Msg) (KVView, tea.Cmd) {
 }
 
 func (v KVView) Breadcrumb() string {
+	if v.showInfo {
+		return "KV Store > " + v.selected + " > Info"
+	}
 	switch v.pane {
 	case kvPaneKeys:
 		return "KV Store > " + v.selected
@@ -350,6 +403,8 @@ func (v *KVView) SetSize(w, h int) {
 	v.keyList.SetSize(half-2, listH)
 	v.valueView.Width = half - 2
 	v.valueView.Height = listH
+	v.infoView.Width = w - 2
+	v.infoView.Height = h - 2
 }
 
 func (v KVView) View() string {
@@ -358,6 +413,9 @@ func (v KVView) View() string {
 	}
 	if v.err != nil {
 		return fmt.Sprintf("  Error: %s", v.err)
+	}
+	if v.showInfo {
+		return v.infoView.View()
 	}
 
 	switch v.pane {
@@ -403,6 +461,48 @@ func renderKVValue(e nc.KVEntry, width int) string {
 	}
 	b.WriteString(string(e.Value))
 	return wrapText(b.String(), width)
+}
+
+func renderKVInfo(d *nc.KVBucketDetail) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Information for Key-Value Store Bucket %s\n\n", d.Name)
+	b.WriteString("Configuration:\n\n")
+	fmt.Fprintf(&b, "         Bucket Name: %s\n", d.Name)
+	fmt.Fprintf(&b, "        History Kept: %d\n", d.History)
+	fmt.Fprintf(&b, "       Values Stored: %d\n", d.Keys)
+	fmt.Fprintf(&b, "  Backing Store Size: %s\n", humanBytes(d.Bytes))
+	if d.MaxBytes <= 0 {
+		b.WriteString("   Maximum Byte Size: unlimited\n")
+	} else {
+		fmt.Fprintf(&b, "   Maximum Byte Size: %s\n", humanBytes(uint64(d.MaxBytes)))
+	}
+	if d.MaxValueSize <= 0 {
+		b.WriteString("  Maximum Value Size: unlimited\n")
+	} else {
+		fmt.Fprintf(&b, "  Maximum Value Size: %s\n", humanBytes(uint64(d.MaxValueSize)))
+	}
+	if d.TTL == 0 {
+		b.WriteString("     Maximum Age TTL: unlimited\n")
+	} else {
+		fmt.Fprintf(&b, "     Maximum Age TTL: %s\n", d.TTL)
+	}
+	fmt.Fprintf(&b, "    JetStream Stream: %s\n", d.StreamName)
+	fmt.Fprintf(&b, "             Storage: %s\n", capitalizeFirst(d.Storage))
+	fmt.Fprintf(&b, "            Replicas: %d\n", d.Replicas)
+	if d.MirrorName != "" {
+		fmt.Fprintf(&b, "              Mirror: %s\n", d.MirrorName)
+		if d.MirrorDomain != "" {
+			fmt.Fprintf(&b, "       Mirror Domain: %s\n", d.MirrorDomain)
+		}
+	}
+	return b.String()
+}
+
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // wrapText wraps lines in s that exceed width characters, breaking at the last
