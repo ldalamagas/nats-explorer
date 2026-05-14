@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -73,18 +74,22 @@ func (c *Client) IsConnected() bool {
 // --- KV Store ---
 
 type KVBucketInfo struct {
-	Name     string
-	Keys     uint64
-	Bytes    uint64
-	History  int64
-	TTL      time.Duration
+	Name    string
+	Keys    uint64
+	Bytes   uint64
+	History int64
+	TTL     time.Duration
 }
 
 func (c *Client) ListKVBuckets(ctx context.Context) ([]KVBucketInfo, error) {
 	var buckets []KVBucketInfo
-	iter := c.js.KeyValueStoreNames(ctx)
+	iter := c.js.StreamNames(ctx)
 	for name := range iter.Name() {
-		kv, err := c.js.KeyValue(ctx, name)
+		if !strings.HasPrefix(name, "KV_") {
+			continue
+		}
+		bucket := strings.TrimPrefix(name, "KV_")
+		kv, err := c.js.KeyValue(ctx, bucket)
 		if err != nil {
 			continue
 		}
@@ -93,14 +98,14 @@ func (c *Client) ListKVBuckets(ctx context.Context) ([]KVBucketInfo, error) {
 			continue
 		}
 		buckets = append(buckets, KVBucketInfo{
-			Name:    name,
+			Name:    bucket,
 			Keys:    status.Values(),
 			Bytes:   status.Bytes(),
 			History: int64(status.History()),
 			TTL:     status.TTL(),
 		})
 	}
-	if err := iter.Error(); err != nil {
+	if err := iter.Err(); err != nil {
 		return buckets, err
 	}
 	return buckets, nil
@@ -156,9 +161,13 @@ type ObjBucketInfo struct {
 
 func (c *Client) ListObjBuckets(ctx context.Context) ([]ObjBucketInfo, error) {
 	var buckets []ObjBucketInfo
-	iter := c.js.ObjectStoreNames(ctx)
+	iter := c.js.StreamNames(ctx)
 	for name := range iter.Name() {
-		obs, err := c.js.ObjectStore(ctx, name)
+		if !strings.HasPrefix(name, "OBJ_") {
+			continue
+		}
+		bucket := strings.TrimPrefix(name, "OBJ_")
+		obs, err := c.js.ObjectStore(ctx, bucket)
 		if err != nil {
 			continue
 		}
@@ -167,12 +176,12 @@ func (c *Client) ListObjBuckets(ctx context.Context) ([]ObjBucketInfo, error) {
 			continue
 		}
 		buckets = append(buckets, ObjBucketInfo{
-			Name:        name,
+			Name:        bucket,
 			Description: status.Description(),
 			Size:        status.Size(),
 		})
 	}
-	if err := iter.Error(); err != nil {
+	if err := iter.Err(); err != nil {
 		return buckets, err
 	}
 	return buckets, nil
